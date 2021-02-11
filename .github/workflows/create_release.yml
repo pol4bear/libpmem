@@ -1,0 +1,122 @@
+on:
+  push:
+    tags:
+      - "v*"
+
+name: Create Release
+
+jobs:
+  create_release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Extract tag name
+        id: tag
+        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{  github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            Check [here](https://github.com/pol4bear/${{ github.event.repository.name }}/blob/${{ steps.tag.outputs.VERSION }}/CHANGES.md) to see what has changed.
+          draft: false
+          prerelease: false
+  build_linux:
+    name: Release Linux Library
+    needs: [create_release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: lukka/get-cmake@latest
+      - name: Get release
+        id: get_release
+        uses: bruceadams/get-release@v1.2.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Build LIbrary
+        run: |
+          cmake -G Ninja -S . -B ${{ runner.workspace }}/static
+          cmake --build ${{ runner.workspace }}/static -j 2
+          cmake -G Ninja -S . -B ${{ runner.workspace }}/shared -Dtype=shared
+          cmake --build ${{ runner.workspace }}/shared -j 2
+      - name: ZIP Library
+        uses: papeloto/action-zip@v1
+        with:
+          files: ../static/${{ github.event.repository.name }}.a ../shared/${{ github.event.repository.name }}.so
+      - name: Upload Library
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_path: "${{ github.workspace }}/result.zip"
+          asset_name: "linux-x64.zip"
+          asset_content_type: application/zip
+  build_osx:
+    name: Release OSX Library
+    needs: [create_release]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: lukka/get-cmake@latest
+      - name: Get release
+        id: get_release
+        uses: bruceadams/get-release@v1.2.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Build Library
+        run: |
+          cmake -G Ninja -S . -B ${{ runner.workspace }}/static
+          cmake --build ${{ runner.workspace }}/static -j 2
+          cmake -G Ninja -S . -B ${{ runner.workspace }}/shared -Dtype=shared
+          cmake --build ${{ runner.workspace }}/shared -j 2
+      - name: ZIP Library
+        uses: papeloto/action-zip@v1
+        with:
+          files: ../static/${{ github.event.repository.name }}.a ../shared/${{ github.event.repository.name }}.dylib
+      - name: Upload Library
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_path: "${{ github.workspace }}/result.zip"
+          asset_name: "osx-x64.zip"
+          asset_content_type: application/zip
+  build_windows:
+    name: Release Windows Library
+    needs: [create_release]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: lukka/get-cmake@latest
+      - name: Get release
+        id: get_release
+        uses: bruceadams/get-release@v1.2.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Build Library
+        run: |
+          cmake -G Ninja -S . -B ${{ runner.workspace }}/static
+          cmake --build ${{ runner.workspace }}/static -j 2 --config Release
+          cmake -G Ninja -S . -B ${{ runner.workspace }}/shared -Dtype=shared
+          cmake --build ${{ runner.workspace }}/shared -j 2 --config Release
+      - name: ZIP Library
+        uses: papeloto/action-zip@v1
+        with:
+          files: ../static/${{ github.event.repository.name }}.a ../shared/${{ github.event.repository.name }}.dll
+      - name: Upload Library
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_path: "${{ github.workspace }}/result.zip"
+          asset_name: "windows-x64.zip"
+          asset_content_type: application/zip
