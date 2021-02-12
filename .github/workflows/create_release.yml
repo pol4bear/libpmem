@@ -1,0 +1,93 @@
+on:
+  push:
+    tags:
+      - "v*"
+
+name: Create Release
+
+jobs:
+  create_release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Extract tag name
+        id: tag
+        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{  github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            Check [here](https://github.com/pol4bear/${{ github.event.repository.name }}/blob/${{ steps.tag.outputs.VERSION }}/CHANGES.md) to see what has changed.
+          draft: false
+          prerelease: false
+  build_and_deploy:
+    name: Deploy Library
+    needs: [create_release]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            arch: linux-x64
+          - os: macos-latest
+            arch: osx-x64
+          - os: windows-latest
+            arch: windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Get release
+        id: get_release
+        uses: bruceadams/get-release@v1.2.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Get latest CMake and ninja
+        uses: lukka/get-cmake@latest
+      - name: Set shared library extension for Linux
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          SHARED_EXT: .so
+        run: |
+          echo "SHARED_EXT=$SHARED_EXT" >> $GITHUB_ENV
+          echo "Set shared library to '$SHARED_EXT'"
+      - name: Set shared library extension for MacOS
+        if: matrix.os == 'macos-latest'
+        env:
+          SHARED_EXT: .dylib
+        run: |
+          echo "SHARED_EXT=$SHARED_EXT" >> $GITHUB_ENV
+          echo "Set shared library to '$SHARED_EXT'"
+      - name: Set shared library extension for Windows
+        if: matrix.os == 'windows-latest'
+        env:
+          SHARED_EXT: .dll
+        run: |
+          echo "SHARED_EXT=$env:SHARED_EXT" >> $env:GITHUB_ENV
+          echo "Set shared library to '$env:SHARED_EXT'"
+      - name: Build Library
+        run: |
+          cmake -G Ninja -S . -B ${{ runner.workspace }}/static
+          cmake --build ${{ runner.workspace }}/static -j 2
+          cmake -G Ninja -S . -B ${{ runner.workspace }}/shared -Dtype=shared
+          cmake --build ${{ runner.workspace }}/shared -j 2
+      - name: ZIP Library
+        uses: papeloto/action-zip@v1
+        with:
+          files: ../static/${{ github.event.repository.name }}.a ../shared/${{ github.event.repository.name }}${{ env.SHARED_EXT}}
+      - name: Upload Library
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_path: "${{ github.workspace }}/result.zip"
+          asset_name: "${{ matrix.arch }}.zip"
+          asset_content_type: application/zip
