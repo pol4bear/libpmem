@@ -17,12 +17,12 @@ libpmem:
 	cmake -G Ninja -S .. -B build_dir $(CMAKEFLAGS)
 	cmake --build build_dir
 malloc: libpmem
-	$(CXX) -o malloc_test malloc_test.cpp $(CXXFLAGS)
+	$(CXX) -o malloc_test malloc_test.cc $(CXXFLAGS)
 vector: libpmem
-	$(CXX) -o vector_test vector_test.cpp $(CXXFLAGS)
+	$(CXX) -o vector_test vector_test.cc $(CXXFLAGS)
 list: libpmem
-	$(CXX) -o list_test list_test.cpp $(CXXFLAGS)
+	$(CXX) -o list_test list_test.cc $(CXXFLAGS)
 set: libpmem
-	$(CXX) -o set_test set_test.cpp $(CXXFLAGS)
+	$(CXX) -o set_test set_test.cc $(CXXFLAGS)
 map: libpmem
-	$(CXX) -o map_test map_test.cpp $(CXXFLAGS)
+	$(CXX) -o map_test map_test.cc $(CXXFLAGS)
